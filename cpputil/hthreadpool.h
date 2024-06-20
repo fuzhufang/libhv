@@ -127,7 +127,7 @@ public:
     template<class Fn, class... Args>
     auto commit(Fn&& fn, Args&&... args) -> std::future<decltype(fn(args...))> {
         if (status == STOP) start();
-        if (idle_thread_num <= tasks.size() && cur_thread_num < max_thread_num) {
+        if (static_cast<size_t>(idle_thread_num) <= tasks.size() && cur_thread_num < max_thread_num) { // idle_thread_num 理论上不应该是负数，所以可以强制改为size_t是安全的
             createThread();
         }
         using RetType = decltype(fn(args...));
