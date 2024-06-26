@@ -73,6 +73,10 @@ public:
         worker_threads.setThreadNum(num);
     }
 
+    int threadNum()const {
+        return worker_threads.threadNum();
+    }
+
     int startAccept() {
         if (listenfd < 0) {
             listenfd = createsocket(port, host.c_str());

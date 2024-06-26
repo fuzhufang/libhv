@@ -20,7 +20,7 @@ public:
         join();
     }
 
-    int threadNum() {
+    int threadNum()const {
         return thread_num_;
     }
 
