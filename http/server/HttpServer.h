@@ -4,12 +4,14 @@
 #include "hexport.h"
 #include "hssl.h"
 #include "HttpService.h"
+#include "EventLoop.h"
 // #include "WebSocketServer.h"
 namespace hv {
 struct WebSocketService;
 }
 using hv::HttpService;
 using hv::WebSocketService;
+using hv::EventLoopPtr;
 
 typedef struct http_server_s {
     char host[64];
@@ -56,7 +58,7 @@ typedef struct http_server_s {
 } http_server_t;
 
 // @param wait: Whether to occupy current thread
-HV_EXPORT int http_server_run(http_server_t* server, int wait = 1);
+HV_EXPORT int http_server_run(http_server_t* server, int wait = 1, EventLoopPtr single_loop=nullptr);
 
 // NOTE: stop all loops and join all threads
 HV_EXPORT int http_server_stop(http_server_t* server);
@@ -131,17 +133,17 @@ public:
     // run(":8080")
     // run("0.0.0.0:8080")
     // run("[::]:8080")
-    int run(const char* ip_port = NULL, bool wait = true) {
+    int run(const char* ip_port = NULL, bool wait = true, EventLoopPtr single_loop=nullptr) {
         if (ip_port) {
             hv::NetAddr listen_addr(ip_port);
             if (listen_addr.ip.size() != 0) setHost(listen_addr.ip.c_str());
             if (listen_addr.port != 0)      setPort(listen_addr.port);
         }
-        return http_server_run(this, wait);
+        return http_server_run(this, wait, single_loop);
     }
 
-    int start(const char* ip_port = NULL) {
-        return run(ip_port, false);
+    int start(const char* ip_port = NULL, EventLoopPtr single_loop=nullptr) {
+        return run(ip_port, false, single_loop);
     }
 
     int stop() {

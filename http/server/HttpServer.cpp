@@ -20,6 +20,7 @@ struct HttpServerPrivdata {
     std::mutex                      mutex_;
     std::shared_ptr<HttpService>    service;
     FileCache                       filecache;
+    EventLoopPtr                    single_loop;
 };
 
 static void on_recv(hio_t* io, void* buf, int readbytes) {
@@ -95,8 +96,12 @@ static void on_accept(hio_t* io) {
 static void loop_thread(void* userdata) {
     http_server_t* server = (http_server_t*)userdata;
     HttpService* service = server->service;
+    HttpServerPrivdata* privdata = (HttpServerPrivdata*)server->privdata;
 
-    auto loop = std::make_shared<EventLoop>();
+    auto loop = privdata->single_loop;
+    if (!loop) { // not single thread
+        loop = std::make_shared<EventLoop>();
+    }
     hloop_t* hloop = loop->loop();
     // http
     if (server->listenfd[0] >= 0) {
@@ -113,7 +118,6 @@ static void loop_thread(void* userdata) {
         }
     }
 
-    HttpServerPrivdata* privdata = (HttpServerPrivdata*)server->privdata;
     privdata->mutex_.lock();
     if (privdata->loops.size() == 0) {
         // NOTE: fsync logfile when idle
@@ -170,7 +174,7 @@ static void loop_thread(void* userdata) {
  * on_recv -> HttpHandler::FeedRecvData ->
  * on_close -> delete HttpHandler
  */
-int http_server_run(http_server_t* server, int wait) {
+int http_server_run(http_server_t* server, int wait, EventLoopPtr single_loop) {
     // http_port
     if (server->port > 0) {
         server->listenfd[0] = Listen(server->port, server->host);
@@ -206,20 +210,27 @@ int http_server_run(http_server_t* server, int wait) {
         privdata->service = std::make_shared<HttpService>();
         server->service = privdata->service.get();
     }
+    if (0 == server->worker_threads && 0 == server->worker_processes && single_loop) {
+        privdata->single_loop = single_loop; // single thread
+    }
 
-    if (server->worker_processes) {
+    if (server->worker_processes > 0) {
         // multi-processes
         return master_workers_run(loop_thread, server, server->worker_processes, server->worker_threads, wait);
-    }
-    else {
-        // multi-threads
-        if (server->worker_threads == 0) server->worker_threads = 1;
-        for (int i = wait ? 1 : 0; i < server->worker_threads; ++i) {
-            hthread_t thrd = hthread_create((hthread_routine)loop_thread, server);
-            privdata->threads.push_back(thrd);
-        }
-        if (wait) {
+    } else {
+        if (privdata->single_loop && 0 == server->worker_threads) {
+            // single thread
             loop_thread(server);
+        } else {
+            // multi-threads
+            if (server->worker_threads == 0) server->worker_threads = 1;
+            for (int i = wait ? 1 : 0; i < server->worker_threads; ++i) {
+                hthread_t thrd = hthread_create((hthread_routine)loop_thread, server);
+                privdata->threads.push_back(thrd);
+            }
+            if (wait) {
+                loop_thread(server);
+            }
         }
         return 0;
     }

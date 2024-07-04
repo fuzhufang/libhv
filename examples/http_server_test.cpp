@@ -125,6 +125,13 @@ int main(int argc, char** argv) {
     // uncomment to test multi-threads
     // server.setThreadNum(4);
 
+    // 设置使用单线程
+    // server.setProcessNum(0);
+    // server.setThreadNum(0);
+    // auto single_loop = std::make_shared<EventLoop>();
+    // server.start(nullptr, single_loop);
+
+    // 默认
     server.start();
 
     // press Enter to stop
