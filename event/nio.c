@@ -287,7 +287,13 @@ static int __nio_write(hio_t* io, const void* buf, int len) {
     case HIO_TYPE_UDP:
     case HIO_TYPE_KCP:
     case HIO_TYPE_IP:
+    {
         nwrite = sendto(io->fd, buf, len, 0, io->peeraddr, SOCKADDR_LEN(io->peeraddr));
+        if (((sockaddr_u*)io->localaddr)->sin.sin_port == 0) {
+            socklen_t addrlen = sizeof(sockaddr_u);
+            getsockname(io->fd, io->localaddr, &addrlen);
+        }
+    }
         break;
     default:
         nwrite = write(io->fd, buf, len);
@@ -317,15 +323,14 @@ read:
             // goto read_done;
             return;
         } else if (err == EMSGSIZE) {
-            // ignore
-            return;
+            nread = len;
         } else {
             // perror("read");
             io->error = err;
             goto read_error;
         }
     }
-    if (nread == 0) {
+    if (nread == 0 && (io->io_type & HIO_TYPE_SOCK_STREAM)) {
         goto disconnect;
     }
     if (nread < len) {
@@ -379,7 +384,7 @@ write:
             goto write_error;
         }
     }
-    if (nwrite == 0) {
+    if (nwrite == 0 && (io->io_type & HIO_TYPE_SOCK_STREAM)) {
         goto disconnect;
     }
     pbuf->offset += nwrite;
@@ -510,11 +515,11 @@ try_write:
                 goto write_error;
             }
         }
-        if (nwrite == 0) {
-            goto disconnect;
-        }
         if (nwrite == len) {
             goto write_done;
+        }
+        if (nwrite == 0 && (io->io_type & HIO_TYPE_SOCK_STREAM)) {
+            goto disconnect;
         }
 enqueue:
         hio_add(io, hio_handle_events, HV_WRITE);
