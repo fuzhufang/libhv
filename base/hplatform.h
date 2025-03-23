@@ -60,6 +60,8 @@
     #define ARCH_MIPS64
 #elif defined(__mips__)
     #define ARCH_MIPS
+#elif defined(__riscv)
+    #define ARCH_RISCV
 #else
     #warning "Untested hardware architecture!"
 #endif
@@ -139,6 +141,10 @@
 
 #else
 #warning "Untested compiler!"
+#endif
+
+#ifndef __GNUC_PREREQ
+#define __GNUC_PREREQ(a, b)	0
 #endif
 
 // headers
